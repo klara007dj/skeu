@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ReferralCapture from '@/components/ReferralCapture'
 
 export const metadata: Metadata = {
   title: 'skeu - Your Skin, Your Glow',
@@ -21,7 +22,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <ReferralCapture />
+        {children}
+      </body>
     </html>
   )
 }

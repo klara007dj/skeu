@@ -3,9 +3,11 @@ import Footer from '@/components/layout/Footer'
 import BottomNav from '@/components/layout/BottomNav'
 import CartSidebar from '@/components/shop/CartSidebar'
 import HeroSection from '@/components/shop/HeroSection'
+import HeroProductStrip from '@/components/shop/HeroProductStrip'
 import CategoryCircles from '@/components/shop/CategoryCircles'
 import ProductGrid from '@/components/shop/ProductGrid'
 import PromoBanner from '@/components/shop/PromoBanner'
+import BrandShowcase from '@/components/shop/BrandShowcase'
 
 export default function HomePage() {
   return (
@@ -15,8 +17,9 @@ export default function HomePage() {
 
       <main className="pb-20 md:pb-0">
         <HeroSection />
+        <HeroProductStrip />
 
-        <div className="gradient-brand text-white py-3 overflow-hidden">
+        <div className="gradient-brand text-white py-3 overflow-hidden mt-8">
           <div className="flex gap-12 animate-[marquee_20s_linear_infinite] whitespace-nowrap text-sm font-medium tracking-wide">
             {Array(4)
               .fill(['Vegan', 'Naturel', 'Cruelty-Free', 'Derma teste', 'Livraison rapide', 'Paiement Mobile Money'])
@@ -41,14 +44,6 @@ export default function HomePage() {
 
         <PromoBanner />
 
-        <ProductGrid
-          title="Best Sellers"
-          subtitle="Les chouchous de nos clientes"
-          query="?badge=Best+Seller"
-          viewAllHref="/products?badge=Best+Seller"
-          maxItems={4}
-        />
-
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl px-8 py-12 text-center">
             <h2 className="font-display text-4xl sm:text-5xl font-light mb-2">
@@ -62,6 +57,16 @@ export default function HomePage() {
             </a>
           </div>
         </section>
+
+        <BrandShowcase />
+
+        <ProductGrid
+          title="The Glow Edit"
+          subtitle="Les chouchous de nos clientes"
+          query="?badge=Best+Seller"
+          viewAllHref="/products?badge=Best+Seller"
+          maxItems={4}
+        />
 
         <ProductGrid
           title="Nouveautes"

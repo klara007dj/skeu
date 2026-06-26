@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import BottomNav from '@/components/layout/BottomNav'
 import CartSidebar from '@/components/shop/CartSidebar'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { REF_STORAGE_KEY } from '@/components/ReferralCapture'
+import { Eye, EyeOff, Gift, Loader2 } from 'lucide-react'
 
-const emptyRegister = { name: '', email: '', phone: '', password: '' }
+const emptyRegister = { name: '', email: '', phone: '', password: '', referralCode: '' }
 const emptyLogin = { email: '', password: '' }
 
 type Mode = 'login' | 'register'
@@ -22,6 +23,19 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState<'register' | 'login' | null>(null)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
+
+  // Pre-fill the referral code captured from a reseller link (?ref=CODE)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(REF_STORAGE_KEY)
+      if (stored) {
+        setRegisterForm((prev) => ({ ...prev, referralCode: stored }))
+        setMode('register')
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const submitAccountAction = async (action: 'register' | 'login') => {
     setSubmitting(action)
@@ -171,6 +185,23 @@ export default function LoginPage() {
                   >
                     {showRegisterPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
+                </div>
+                <div>
+                  <div className="relative">
+                    <Gift size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400" />
+                    <input
+                      type="text"
+                      value={registerForm.referralCode}
+                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, referralCode: e.target.value.toUpperCase() }))}
+                      placeholder="Code revendeur / parrainage (optionnel)"
+                      className="w-full pl-10 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-violet-400 uppercase"
+                    />
+                  </div>
+                  {registerForm.referralCode && (
+                    <p className="text-xs text-violet-600 mt-1.5 px-1">
+                      Vous serez rattache au revendeur <strong>{registerForm.referralCode}</strong>.
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => submitAccountAction('register')}

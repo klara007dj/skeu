@@ -75,22 +75,29 @@ export function generateWhatsAppMessage(params: {
   products: { name: string; quantity: number; price: number }[]
   total: number
   transId: string
+  deliveryFee?: number
+  whatsappNumber?: string   // reseller number, falls back to the shop number
 }) {
   const productLines = params.products
     .map((p) => `  - ${p.name} x${p.quantity} -> ${p.price * p.quantity} FCFA`)
     .join('\n')
 
+  const deliveryLine =
+    params.deliveryFee && params.deliveryFee > 0 ? `Livraison : ${params.deliveryFee} FCFA\n` : ''
+
   const message = encodeURIComponent(
     `Bonjour skeu !\n\n` +
-    `J'ai effectue un paiement avec succes.\n\n` +
+    `Je souhaite finaliser/confirmer ma commande.\n\n` +
     `Client : ${params.clientName}\n` +
     `Telephone : ${params.phone}\n\n` +
     `Commande :\n${productLines}\n\n` +
-    `Montant paye : ${params.total} FCFA\n` +
+    deliveryLine +
+    `Montant total : ${params.total} FCFA\n` +
     `ID Transaction : ${params.transId}\n\n` +
-    `Merci de confirmer ma livraison.`
+    `Merci de me communiquer les modalites de livraison.`
   )
 
-  const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '237600000000'
+  const fallback = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '237600000000'
+  const waNumber = String(params.whatsappNumber || '').replace(/[^\d]/g, '') || fallback
   return `https://wa.me/${waNumber}?text=${message}`
 }

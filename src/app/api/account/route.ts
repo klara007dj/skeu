@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { connectDB } from '@/lib/db'
 import User from '@/models/User'
-import { getTokenFromRequest, signToken, verifyToken } from '@/lib/auth'
+import { getTokenFromRequest, signToken, verifyToken, SessionPayload } from '@/lib/auth'
+import { isDbUnavailable } from '@/lib/helpers'
 
-function buildAuthResponse(payload: { email: string; role: 'customer' | 'admin'; name: string }) {
+function buildAuthResponse(payload: SessionPayload) {
   const token = signToken(payload, '7d')
   const response = NextResponse.json({ success: true, user: payload })
   response.cookies.set('auth_token', token, {
@@ -36,15 +37,32 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB()
-    const user = await User.findOne({ email: decoded.email }).lean()
+    const user = await User.findOne({ email: decoded.email })
+      .populate('referredBy', 'name whatsappNumber referralCode resellerActive')
+      .lean()
     if (!user) return NextResponse.json({ user: null })
 
+    const reseller = (user as any).referredBy
     return NextResponse.json({
       user: {
+        id: String(user._id),
         name: user.name,
         email: user.email,
         phone: user.phone || '',
         role: user.role,
+        referralCode: user.referralCode || '',
+        whatsappNumber: user.whatsappNumber || '',
+        resellerBio: user.resellerBio || '',
+        resellerCity: user.resellerCity || '',
+        referredBy: reseller
+          ? {
+              id: String(reseller._id),
+              name: reseller.name,
+              whatsappNumber: reseller.whatsappNumber || '',
+              referralCode: reseller.referralCode || '',
+              active: reseller.resellerActive !== false,
+            }
+          : null,
       },
     })
   } catch {
@@ -54,15 +72,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { action, name, email, password, phone } = await req.json()
+    const { action, name, email, password, phone, referralCode } = await req.json()
     const normalizedEmail = String(email || '').trim().toLowerCase()
     const trimmedName = String(name || '').trim()
     const rawPassword = String(password || '')
+    const refCode = String(referralCode || '').trim().toUpperCase()
 
     if (!normalizedEmail || !rawPassword) {
       return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
     }
-
 
     const adminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
     const adminPassword = String(process.env.ADMIN_PASSWORD || '')
@@ -81,26 +99,41 @@ export async function POST(req: NextRequest) {
       if (!trimmedName) {
         return NextResponse.json({ error: 'Nom requis' }, { status: 400 })
       }
+      if (rawPassword.length < 6) {
+        return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 6 caracteres' }, { status: 400 })
+      }
 
       const existingUser = await User.findOne({ email: normalizedEmail })
       if (existingUser) {
         return NextResponse.json({ error: 'Un compte existe deja avec cet email' }, { status: 409 })
       }
 
-      const role: 'customer' | 'admin' = adminEmail && normalizedEmail === adminEmail ? 'admin' : 'customer'
+      // Resolve referral code (a customer can sign up via a reseller link/code)
+      let referredBy: any = null
+      let referredByCode: string | undefined
+      if (refCode) {
+        const reseller = await User.findOne({ referralCode: refCode, role: 'reseller' }).lean()
+        if (reseller) {
+          referredBy = reseller._id
+          referredByCode = refCode
+        }
+      }
 
-      const hashedPassword = await bcrypt.hash(rawPassword, 10)
+      const hashedPassword = await bcrypt.hash(rawPassword, 12)
       const createdUser = await User.create({
         name: trimmedName,
         email: normalizedEmail,
         phone: String(phone || '').trim(),
         password: hashedPassword,
-        role,
+        role: 'customer',
+        referredBy,
+        referredByCode,
       })
 
       return buildAuthResponse({
+        id: String(createdUser._id),
         email: createdUser.email,
-        role,
+        role: 'customer',
         name: createdUser.name,
       })
     }
@@ -116,7 +149,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 })
       }
 
+      // A linked customer can use a reseller code later by passing it on login.
+      if (refCode && user.role === 'customer' && !user.referredBy) {
+        const reseller = await User.findOne({ referralCode: refCode, role: 'reseller' }).lean()
+        if (reseller) {
+          user.referredBy = reseller._id as any
+          user.referredByCode = refCode
+          await user.save()
+        }
+      }
+
       return buildAuthResponse({
+        id: String(user._id),
         email: user.email,
         role: user.role,
         name: user.name,
@@ -125,11 +169,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Action invalide' }, { status: 400 })
   } catch (error: any) {
-    const message = String(error?.message || '')
-    if (/MONGODB_URI manquant|ECONN|authentication failed|bad auth/i.test(message)) {
+    if (isDbUnavailable(error)) {
       return NextResponse.json({ error: 'Base de donnees indisponible. Reessayez plus tard.' }, { status: 503 })
     }
-
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

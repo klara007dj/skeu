@@ -1,25 +1,46 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCartStore } from '@/store/cartStore'
+import { REF_STORAGE_KEY } from '@/components/ReferralCapture'
 import Navbar from '@/components/layout/Navbar'
-import { ShoppingBag, Loader2, CheckCircle, MessageCircle } from 'lucide-react'
+import { ShoppingBag, Loader2, CheckCircle, MessageCircle, Truck } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
 type Step = 'form' | 'processing' | 'success'
 
 interface FormData {
-  name: string; phone: string; email: string; notes: string
+  name: string; phone: string; email: string; city: string; address: string; notes: string
 }
+
+interface Zone { _id: string; name: string; fee: number; isDefault: boolean }
 
 export default function CheckoutPage() {
   const { items, total, clearCart } = useCartStore()
   const cartTotal = total()
 
   const [step,     setStep]     = useState<Step>('form')
-  const [formData, setFormData] = useState<FormData>({ name: '', phone: '', email: '', notes: '' })
+  const [formData, setFormData] = useState<FormData>({ name: '', phone: '', email: '', city: '', address: '', notes: '' })
   const [errors,   setErrors]   = useState<Partial<FormData>>({})
-  const [result,   setResult]   = useState<{ paymentLink?: string; transId?: string; waLink?: string } | null>(null)
+  const [zones,    setZones]    = useState<Zone[]>([])
+  const [zoneId,   setZoneId]   = useState<string>('')
+  const [result,   setResult]   = useState<{ paymentLink?: string; transId?: string; waLink?: string; deliveryFee?: number; total?: number; hasReseller?: boolean } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/shipping')
+      .then((r) => r.json())
+      .then((d) => {
+        const z: Zone[] = d.zones || []
+        setZones(z)
+        const def = z.find((x) => x.isDefault) || z[0]
+        if (def) setZoneId(def._id)
+      })
+      .catch(() => {})
+  }, [])
+
+  const selectedZone = zones.find((z) => z._id === zoneId)
+  const deliveryFee = selectedZone?.fee || 0
+  const grandTotal = cartTotal + deliveryFee
 
   const validate = (): boolean => {
     const e: Partial<FormData> = {}
@@ -35,12 +56,24 @@ export default function CheckoutPage() {
     if (items.length === 0) return
 
     setStep('processing')
+    let resellerCode = ''
+    try { resellerCode = localStorage.getItem(REF_STORAGE_KEY) || '' } catch { /* ignore */ }
 
     try {
       const res = await fetch('/api/payment/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, items, total: cartTotal }),
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          city: formData.city,
+          address: formData.address,
+          notes: formData.notes,
+          items,
+          shippingZoneId: zoneId || undefined,
+          resellerCode: resellerCode || undefined,
+        }),
       })
       const data = await res.json()
 
@@ -77,17 +110,18 @@ export default function CheckoutPage() {
           <CheckCircle size={40} className="text-green-500" />
         </div>
         <h2 className="font-display text-4xl font-light mb-2">Merci pour votre commande !</h2>
-        <p className="text-gray-500 text-sm mb-8 max-w-sm">
-          Votre commande a été enregistrée. Cliquez ci-dessous pour payer via Mobile Money.
+        <p className="text-gray-500 text-sm mb-2 max-w-sm">
+          Votre commande a été enregistrée. Cliquez ci-dessous pour payer en toute sécurité sur le site via Fapshi.
         </p>
+        {typeof result.total === 'number' && (
+          <p className="text-gray-700 text-sm mb-8">
+            Montant à payer : <strong className="text-violet-700">{result.total.toLocaleString()} FCFA</strong>
+            {result.deliveryFee ? ` (dont ${result.deliveryFee.toLocaleString()} FCFA de livraison)` : ''}
+          </p>
+        )}
 
         {result.paymentLink && (
-          <a
-            href={result.paymentLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary text-sm mb-4 inline-block"
-          >
+          <a href={result.paymentLink} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm mb-4 inline-block">
             💳 Payer maintenant via Fapshi
           </a>
         )}
@@ -99,7 +133,7 @@ export default function CheckoutPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-medium px-6 py-3 rounded-full text-sm transition-colors shadow-md mt-2"
           >
-            <MessageCircle size={18} /> Contacter sur WhatsApp
+            <MessageCircle size={18} /> {result.hasReseller ? 'Discuter avec mon revendeur' : 'Contacter sur WhatsApp'}
           </a>
         )}
 
@@ -108,7 +142,7 @@ export default function CheckoutPage() {
         )}
 
         <Link href="/" className="mt-8 text-sm text-violet-500 hover:text-violet-700 transition-colors">
-          ← Retour à l'accueil
+          ← Retour à l&apos;accueil
         </Link>
       </div>
     </>
@@ -132,6 +166,7 @@ export default function CheckoutPage() {
                 { key: 'name',  label: 'Nom complet *',     type: 'text',  placeholder: 'Ex: Marie Dupont' },
                 { key: 'phone', label: 'Téléphone Mobile Money *', type: 'tel', placeholder: 'Ex: +237 6XX XXX XXX' },
                 { key: 'email', label: 'Email (optionnel)', type: 'email', placeholder: 'marie@email.com' },
+                { key: 'address', label: 'Adresse / quartier', type: 'text', placeholder: 'Ex: Akwa, rue 12' },
               ].map(f => (
                 <div key={f.key}>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
@@ -149,10 +184,39 @@ export default function CheckoutPage() {
                   )}
                 </div>
               ))}
+
+              {/* Shipping zone selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Truck size={14} className="inline mr-1 text-violet-500" /> Lieu de livraison
+                </label>
+                {zones.length > 0 ? (
+                  <select
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-violet-400"
+                  >
+                    {zones.map((z) => (
+                      <option key={z._id} value={z._id}>
+                        {z.name} — {z.fee.toLocaleString()} FCFA
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                    placeholder="Votre ville"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-violet-400"
+                  />
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes (optionnel)</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   placeholder="Instructions de livraison, message..."
                   value={formData.notes}
                   onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
@@ -162,9 +226,9 @@ export default function CheckoutPage() {
             </div>
 
             <div className="mt-6 p-4 bg-violet-50 rounded-2xl">
-              <p className="text-xs text-violet-700 font-medium mb-1">💳 Paiement Mobile Money</p>
+              <p className="text-xs text-violet-700 font-medium mb-1">💳 Paiement 100% sur le site</p>
               <p className="text-xs text-gray-500">
-                Vous serez redirigé vers Fapshi pour payer en toute sécurité via MTN Mobile Money ou Orange Money.
+                Le paiement (produits + livraison) se fait directement sur le site via Fapshi (MTN / Orange Money).
               </p>
             </div>
           </div>
@@ -193,11 +257,12 @@ export default function CheckoutPage() {
                   <span>Sous-total</span><span>{cartTotal.toLocaleString()} FCFA</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-1">
-                  <span>Livraison</span><span className="text-green-600">À confirmer</span>
+                  <span>Livraison{selectedZone ? ` (${selectedZone.name})` : ''}</span>
+                  <span>{deliveryFee > 0 ? `${deliveryFee.toLocaleString()} FCFA` : 'Gratuite'}</span>
                 </div>
                 <div className="flex justify-between font-bold text-gray-900 mt-3 text-lg">
                   <span>Total</span>
-                  <span className="text-violet-700">{cartTotal.toLocaleString()} FCFA</span>
+                  <span className="text-violet-700">{grandTotal.toLocaleString()} FCFA</span>
                 </div>
               </div>
             </div>
@@ -210,7 +275,7 @@ export default function CheckoutPage() {
               {step === 'processing' ? (
                 <><Loader2 size={18} className="animate-spin" /> Traitement en cours…</>
               ) : (
-                <>💳 Confirmer et payer — {cartTotal.toLocaleString()} FCFA</>
+                <>💳 Confirmer et payer — {grandTotal.toLocaleString()} FCFA</>
               )}
             </button>
           </div>

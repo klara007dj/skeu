@@ -18,6 +18,17 @@ const ProductSchema = new mongoose.Schema({
 
 const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema)
 
+const ShippingZoneSchema = new mongoose.Schema({
+  name: String, fee: Number, active: Boolean, isDefault: Boolean,
+}, { timestamps: true })
+const ShippingZone = mongoose.models.ShippingZone || mongoose.model('ShippingZone', ShippingZoneSchema)
+
+const shippingZones = [
+  { name: 'Douala', fee: 1500, active: true, isDefault: false },
+  { name: 'Yaounde', fee: 2000, active: true, isDefault: false },
+  { name: 'Autres villes', fee: 3500, active: true, isDefault: true },
+]
+
 const products = [
   {
     name: 'Sérum Radiance Éclat',
@@ -82,6 +93,11 @@ async function seed() {
   await Product.deleteMany({})
   await Product.insertMany(products)
   console.log(`✅ ${products.length} produits insérés avec succès !`)
+
+  await ShippingZone.deleteMany({})
+  await ShippingZone.insertMany(shippingZones)
+  console.log(`✅ ${shippingZones.length} zones de livraison insérées !`)
+
   await mongoose.disconnect()
 }
 

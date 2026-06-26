@@ -6,11 +6,35 @@ Application e-commerce construite avec Next.js, MongoDB et Fapshi.
 
 - boutique produits avec filtres, tri et recherche
 - compte client avec inscription, connexion et deconnexion
-- connexion admin et dashboard protege
+- super admin (defini dans les variables d'environnement) avec panel complet
+- gestion des **revendeurs** : le super admin nomme un client revendeur
+- chaque revendeur a un **code / lien de parrainage** et une page de configuration
+- attribution automatique des commandes au revendeur (lien ou code promo)
+- **frais de livraison** configurables par le super admin selon le lieu du client
+- paiement 100% sur le site via Fapshi (produits + livraison)
+- redirection WhatsApp vers le revendeur pour discuter des modalites
+- **notation des revendeurs** par les clients
+- suivi des montants apportes par chaque revendeur cote admin
+- export **PDF** : rapport general + rapport personnel par revendeur
 - panier persistant avec Zustand
-- paiement Mobile Money via Fapshi
-- message WhatsApp apres paiement
 - favicon SVG et branding violet `SK`
+
+## Roles
+
+- `admin` (super admin) : defini par `ADMIN_EMAIL` / `ADMIN_PASSWORD`, acces a `/admin`
+- `reseller` (revendeur) : nomme par l'admin, acces a `/reseller`
+- `customer` (client) : inscription libre, peut etre rattache a un revendeur
+
+## Parcours revendeur
+
+1. Le client cree un compte sur `/login`
+2. Le super admin saisit son email dans `Admin > Revendeurs > Nommer un revendeur`
+3. Un code de parrainage unique est genere
+4. Le revendeur partage son lien `/?ref=CODE` ou son code
+5. Les clients qui s'inscrivent avec sont rattaches au revendeur
+6. Leurs commandes payees sont comptabilisees pour ce revendeur
+7. Le revendeur configure son numero WhatsApp sur `/reseller`
+8. Les clients le contactent et le notent depuis `/account`
 
 ## Stack
 

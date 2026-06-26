@@ -3,28 +3,31 @@ import { jwtVerify } from 'jose'
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_change_me')
 
-async function hasAdminRole(token: string) {
+async function getRole(token: string): Promise<string | null> {
   try {
     const { payload } = await jwtVerify(token, secret)
-    return payload.role === 'admin'
+    return (payload.role as string) || null
   } catch {
-    return false
+    return null
   }
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  const token = req.cookies.get('auth_token')?.value
+  const role = token ? await getRole(token) : null
 
+  // Admin area
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    const token = req.cookies.get('auth_token')?.value
-
-    if (!token) {
+    if (role !== 'admin') {
       return NextResponse.redirect(new URL('/admin/login', req.url))
     }
+  }
 
-    const isAdmin = await hasAdminRole(token)
-    if (!isAdmin) {
-      return NextResponse.redirect(new URL('/admin/login', req.url))
+  // Reseller area
+  if (pathname.startsWith('/reseller')) {
+    if (role !== 'reseller') {
+      return NextResponse.redirect(new URL('/login', req.url))
     }
   }
 
@@ -32,5 +35,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/reseller/:path*'],
 }

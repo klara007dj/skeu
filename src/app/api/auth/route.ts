@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import User from '@/models/User'
+import { isDbUnavailable } from '@/lib/helpers'
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 })
     }
 
-    const token = signToken({ role: 'admin', email: user.email, name: user.name }, '7d')
+    const token = signToken({ id: String(user._id), role: 'admin', email: user.email, name: user.name }, '7d')
 
     const response = NextResponse.json({ success: true, message: 'Connexion reussie' })
     response.cookies.set('auth_token', token, {
@@ -60,11 +61,9 @@ export async function POST(req: NextRequest) {
 
     return response
   } catch (error: any) {
-    const message = String(error?.message || '')
-    if (/MONGODB_URI manquant|ECONN|authentication failed|bad auth/i.test(message)) {
+    if (isDbUnavailable(error)) {
       return NextResponse.json({ error: 'Base de donnees indisponible. Reessayez plus tard.' }, { status: 503 })
     }
-
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

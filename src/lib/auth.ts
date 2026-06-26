@@ -3,6 +3,13 @@ import { NextRequest } from 'next/server'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_change_me'
 
+export interface SessionPayload {
+  id?: string
+  email: string
+  name: string
+  role: 'customer' | 'admin' | 'reseller'
+}
+
 export function signToken(payload: object, expiresIn = '7d') {
   return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions)
 }
@@ -24,9 +31,24 @@ export function getTokenFromRequest(req: NextRequest) {
   return cookie?.value || null
 }
 
-export function isAdminFromRequest(req: NextRequest): boolean {
+/** Returns the decoded session payload, or null if missing/invalid. */
+export function getSession(req: NextRequest): SessionPayload | null {
   const token = getTokenFromRequest(req)
-  if (!token) return false
+  if (!token) return null
   const decoded = verifyToken(token) as any
-  return decoded?.role === 'admin'
+  if (!decoded?.email || !decoded?.role) return null
+  return {
+    id: decoded.id,
+    email: decoded.email,
+    name: decoded.name,
+    role: decoded.role,
+  }
+}
+
+export function isAdminFromRequest(req: NextRequest): boolean {
+  return getSession(req)?.role === 'admin'
+}
+
+export function isResellerFromRequest(req: NextRequest): boolean {
+  return getSession(req)?.role === 'reseller'
 }
