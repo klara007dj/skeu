@@ -8,6 +8,7 @@ import CategoryCircles from '@/components/shop/CategoryCircles'
 import ProductGrid from '@/components/shop/ProductGrid'
 import PromoBanner from '@/components/shop/PromoBanner'
 import BrandShowcase from '@/components/shop/BrandShowcase'
+import BrandBanners from '@/components/shop/BrandBanners'
 
 export default function HomePage() {
   return (
@@ -75,6 +76,8 @@ export default function HomePage() {
           viewAllHref="/products?badge=New"
           maxItems={4}
         />
+
+        <BrandBanners />
       </main>
 
       <Footer />
